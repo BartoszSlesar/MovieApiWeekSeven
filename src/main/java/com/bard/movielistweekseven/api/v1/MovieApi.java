@@ -3,6 +3,8 @@ package com.bard.movielistweekseven.api.v1;
 
 import com.bard.movielistweekseven.model.Movie;
 import com.bard.movielistweekseven.services.MovieService;
+import com.bard.movielistweekseven.services.UserService;
+import com.bard.movielistweekseven.utils.SentConfirmationEmail;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -21,6 +23,8 @@ public class MovieApi {
 
 
     private final MovieService movieService;
+
+    private final UserService userService;
 
 
     @GetMapping(produces = {
@@ -63,8 +67,24 @@ public class MovieApi {
     }
 
 
+    @GetMapping(path = "/personalToken", params = "email", produces = {
+            MediaType.APPLICATION_JSON_VALUE,
+            MediaType.APPLICATION_XML_VALUE})
+    public ResponseEntity<String> getToken(@RequestParam(name = "email") String email) {
+        Optional<String> optionalToken = userService.generateToken(email);
+        return optionalToken
+                .map(personalToken -> new ResponseEntity<>(personalToken, HttpStatus.CREATED))
+                .orElseGet(() -> new ResponseEntity<>("User Already exist", HttpStatus.FORBIDDEN));
+
+    }
+
+
     @PostMapping
-    public ResponseEntity<Movie> addMovie(@Validated @RequestBody Movie movie) {
+    @SentConfirmationEmail
+    public ResponseEntity<Movie> addMovie(@RequestParam(name = "token") String token, @Validated @RequestBody Movie movie) {
+        if (this.userService.checkIfPresent(token)) {
+            return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
+        }
         Optional<Movie> addMovie = this.movieService.addMovie(movie);
         return addMovie
                 .map(addedMovie -> new ResponseEntity<>(addedMovie, HttpStatus.CREATED))
